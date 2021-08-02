@@ -29,6 +29,8 @@ entity Pong_Top is
     i_Paddle_Up_P2 : in std_logic;
     i_Paddle_Dn_P2 : in std_logic;
     
+    o_P1_Score  : out integer;
+    o_P2_Score  : out integer;
     o_HSync     : out std_logic;
     o_VSync     : out std_logic;
     o_Red_Video : out std_logic_vector(g_Video_Width-1 downto 0);
@@ -54,10 +56,8 @@ architecture rtl of Pong_Top is
   signal w_Col_Count_Div : std_logic_vector(5 downto 0) := (others => '0');
   signal w_Row_Count_Div : std_logic_vector(5 downto 0) := (others => '0');
 
-  -- Integer representation of the above counters.
-  -- Integers are easier to work with conceptually
-  signal w_Col_Index : integer range 0 to 2**w_Col_Count_Div'length-1 := 0;
-  signal w_Row_Index : integer range 0 to 2**w_Row_Count_Div'length-1 := 0; 
+
+
 
   signal w_Draw_Paddle_P1 : std_logic;
   signal w_Draw_Paddle_P2 : std_logic;
@@ -67,6 +67,8 @@ architecture rtl of Pong_Top is
   signal w_Ball_X         : std_logic_vector(5 downto 0);
   signal w_Ball_Y         : std_logic_vector(5 downto 0);
   signal w_Draw_Any       : std_logic;
+  signal w_Draw_score_p1  : std_logic;
+  signal w_Draw_score_p2  : std_logic;
   
   signal w_Game_Active : std_logic;
 
@@ -77,6 +79,7 @@ architecture rtl of Pong_Top is
 
   signal r_P1_Score : integer range 0 to c_Score_Limit := 0;
   signal r_P2_Score : integer range 0 to c_Score_Limit := 0;
+
   
 begin
 
@@ -156,6 +159,32 @@ begin
       o_Ball_Y        => w_Ball_Y
       );
 
+  --Instantiation of score draw for Player 1
+  Score_Ctrl_P1_inst : Pong_Score_Ctrl
+    generic map (
+      g_X_offset => c_x_offset_p1
+      )
+    port map (
+      i_Clk           => i_Clk,
+      i_score         => r_P1_Score,
+      i_Col_Count     => w_Col_Count,
+      i_Row_Count     => w_Row_Count,
+      o_Draw_Score   => w_Draw_score_p1
+      );
+
+      --Instantiation of score draw for Player 2
+  Score_Ctrl_P2_inst : Pong_Score_Ctrl
+    generic map (
+      g_X_offset => c_x_offset_p2
+      )
+    port map (
+      i_Clk           => i_Clk,
+      i_score         => r_P2_Score,
+      i_Col_Count     => w_Col_Count,
+      i_Row_Count     => w_Row_Count,
+      o_Draw_Score   => w_Draw_score_p2
+      );
+
   -- Create Intermediary signals for P1 and P2 Paddle Top and Bottom positions
   w_Paddle_Y_P1_Bot <= unsigned(w_Paddle_Y_P1);
   w_Paddle_Y_P1_Top <= w_Paddle_Y_P1_Bot + to_unsigned(c_Paddle_Height, w_Paddle_Y_P1_Bot'length);
@@ -201,8 +230,9 @@ begin
 
 
         when s_P1_Wins =>
-          if r_P1_Score = c_Score_Limit then
+          if r_P1_Score = c_Score_Limit-1 then
             r_P1_Score <= 0;
+            r_P2_Score <= 0;
           else
             r_P1_Score <= r_P1_Score + 1;
           end if;
@@ -210,8 +240,9 @@ begin
 
           
         when s_P2_Wins =>
-          if r_P2_Score = c_Score_Limit then
+          if r_P2_Score = c_Score_Limit-1 then
             r_P2_Score <= 0;
+            r_P1_Score <= 0;
           else
             r_P2_Score <= r_P2_Score + 1;
           end if;
@@ -232,7 +263,13 @@ begin
   -- Conditional Assignment of Game Active based on State Machine
   w_Game_Active <= '1' when r_SM_Main = s_Running else '0';
 
-  w_Draw_Any <= w_Draw_Ball or w_Draw_Paddle_P1 or w_Draw_Paddle_P2;
+  --output draw signal...prints the pixel if any of the modules are active high at this x,y position
+  w_Draw_Any <= w_Draw_Ball or w_Draw_score_p1 or w_Draw_score_p2 or w_Draw_Paddle_P1 or w_Draw_Paddle_P2;
+
+
+  --assign outputs for score
+  o_P1_Score <= r_P1_Score;
+  o_P2_Score <= r_P2_Score;
   
   -- Assign Color outputs, only two colors, White or Black
   o_Red_Video <= (others => '1') when w_Draw_Any = '1' else (others => '0');
